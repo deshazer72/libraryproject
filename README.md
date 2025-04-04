@@ -28,7 +28,7 @@
 5. The backend will start on `https://localhost:7170` (HTTPS) or `http://localhost:5162` (HTTP).
 
 ### API Documentation
-- Open your browser and navigate to `https://localhost:7170/swagger` to access the API documentation.
+- Open your browser and navigate to `https://localhost:7170/swagger` or `http://localhost:5162/swagger` to access the API documentation.
 
 ### Frontend Setup and Running Instructions
 
