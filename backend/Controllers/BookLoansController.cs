@@ -24,16 +24,26 @@ public class BookLoansController : ControllerBase
 
     // GET: api/BookLoans
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<BookLoan>>> GetMyBookLoans()
-    {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        
-        return await _context.BookLoans
-            .Include(l => l.Book)
-            .Where(l => l.UserId == userId)
-            .OrderByDescending(l => l.CheckoutDate)
-            .ToListAsync();
-    }
+   public async Task<ActionResult<IEnumerable<BookLoanDto>>> GetMyBookLoans()
+{
+    var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+    var bookLoans = await _context.BookLoans
+        .Include(l => l.Book)
+        .Where(l => l.UserId == userId)
+        .OrderByDescending(l => l.CheckoutDate)
+        .Select(l => new BookLoanDto
+        {
+            Id = l.Id,
+            BookTitle = l.Book.Title,
+            CheckoutDate = l.CheckoutDate,
+            DueDate = l.DueDate,
+            IsReturned = l.ReturnDate.HasValue
+        })
+        .ToListAsync();
+
+    return Ok(bookLoans);
+}
 
     // GET: api/BookLoans/All
     [HttpGet("All")]

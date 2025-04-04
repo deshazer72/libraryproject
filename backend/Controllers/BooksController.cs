@@ -19,7 +19,7 @@ public class BooksController : ControllerBase
 
     // GET: api/Books
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<Book>>> GetBooks(
+    public async Task<ActionResult<IEnumerable<BookDto>>> GetBooks(
         [FromQuery] string? searchTerm = null,
         [FromQuery] string? sortBy = null,
         [FromQuery] bool? availableOnly = null)
@@ -56,7 +56,25 @@ public class BooksController : ControllerBase
                 break;
         }
 
-        return await query.ToListAsync();
+      var booksDto = await query
+            .Select(b => new BookDto
+            {
+                Id = b.Id,
+                Title = b.Title,
+                Author = b.Author,
+                Description = b.Description,
+                CoverImageUrl = b.CoverImageUrl,
+                Publisher = b.Publisher,
+                PublicationDate = b.PublicationDate,
+                Category = b.Category,
+                ISBN = b.ISBN,
+                PageCount = b.PageCount,
+                IsAvailable = b.IsAvailable,
+                AverageRating = b.Reviews.Any() ? b.Reviews.Average(r => r.Rating) : 0.0
+            })
+            .ToListAsync();
+
+        return booksDto;
     }
 
     // GET: api/Books/Featured

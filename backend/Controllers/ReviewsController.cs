@@ -20,13 +20,21 @@ public class ReviewsController : ControllerBase
 
     // GET: api/Reviews/Book/5
     [HttpGet("Book/{bookId}")]
-    public async Task<ActionResult<IEnumerable<Review>>> GetBookReviews(int bookId)
+    public async Task<ActionResult<IEnumerable<ReviewDto>>> GetBookReviews(int bookId)
     {
-        var reviews = await _context.Reviews
-            .Include(r => r.User)
-            .Where(r => r.BookId == bookId)
-            .OrderByDescending(r => r.CreatedAt)
-            .ToListAsync();
+         var reviews = await _context.Reviews
+        .Include(r => r.User)
+        .Where(r => r.BookId == bookId)
+        .OrderByDescending(r => r.CreatedAt)
+        .Select(r => new ReviewDto
+        {
+            Id = r.Id,
+            Rating = r.Rating,
+            Comment = r.Comment,
+            UserName = r.User.UserName,
+            CreatedAt = r.CreatedAt
+        })
+        .ToListAsync();
 
         return reviews;
     }
@@ -147,4 +155,7 @@ public class ReviewDto
     public int BookId { get; set; }
     public int Rating { get; set; }
     public string Comment { get; set; } = string.Empty;
+    public int Id { get; internal set; }
+    public string? UserName { get; internal set; }
+    public DateTime CreatedAt { get; internal set; }
 }
