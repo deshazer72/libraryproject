@@ -1,8 +1,7 @@
-using LibraryAPI.Data;
+using LibraryAPI.DTO;
 using LibraryAPI.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
 namespace LibraryAPI.Controllers;
@@ -11,72 +10,45 @@ namespace LibraryAPI.Controllers;
 [Route("api/[controller]")]
 public class ReviewsController : ControllerBase
 {
-    private readonly ApplicationDbContext _context;
+    private readonly IReviews _reviewService;
 
-    public ReviewsController(ApplicationDbContext context)
+    public ReviewsController(IReviews reviewService)
     {
-        _context = context;
+        _reviewService = reviewService;
     }
 
     // GET: api/Reviews/Book/5
     [HttpGet("Book/{bookId}")]
     public async Task<ActionResult<IEnumerable<ReviewDto>>> GetBookReviews(int bookId)
     {
-         var reviews = await _context.Reviews
-        .Include(r => r.User)
-        .Where(r => r.BookId == bookId)
-        .OrderByDescending(r => r.CreatedAt)
-        .Select(r => new ReviewDto
+        try 
         {
-            Id = r.Id,
-            Rating = r.Rating,
-            Comment = r.Comment,
-            UserName = r.User.UserName,
-            CreatedAt = r.CreatedAt
-        })
-        .ToListAsync();
-
-        return reviews;
+            var reviews = await _reviewService.GetAllReviewsAsync();
+            return Ok(reviews.Where(r => r.BookId == bookId));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(ex.Message);
+        }
     }
 
     // POST: api/Reviews
     [HttpPost]
     [Authorize(Roles = "Customer")]
-    public async Task<ActionResult<Review>> CreateReview(ReviewDto reviewDto)
+    public async Task<ActionResult<ReviewDto>> CreateReview(ReviewDto reviewDto)
     {
-        var book = await _context.Books.FindAsync(reviewDto.BookId);
-        if (book == null)
-        {
-            return NotFound("Book not found");
-        }
-
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        reviewDto.UserId = userId;
 
-        // Check if user has already reviewed this book
-        var existingReview = await _context.Reviews
-            .FirstOrDefaultAsync(r => r.BookId == reviewDto.BookId && r.UserId == userId);
-
-        if (existingReview != null)
+        try
         {
-            return BadRequest("You have already reviewed this book");
+            var review = await _reviewService.AddReviewAsync(reviewDto);
+            return CreatedAtAction(nameof(GetBookReviews), new { bookId = review.BookId }, review);
         }
-
-        var review = new Review
+        catch (InvalidOperationException ex)
         {
-            BookId = reviewDto.BookId,
-            UserId = userId,
-            Rating = reviewDto.Rating,
-            Comment = reviewDto.Comment,
-            CreatedAt = DateTime.UtcNow
-        };
-
-        _context.Reviews.Add(review);
-        await _context.SaveChangesAsync();
-
-        // Load the user for the response
-        await _context.Entry(review).Reference(r => r.User).LoadAsync();
-
-        return CreatedAtAction("GetBookReviews", new { bookId = review.BookId }, review);
+            return BadRequest(ex.Message);
+        }
     }
 
     // PUT: api/Reviews/5
@@ -84,38 +56,26 @@ public class ReviewsController : ControllerBase
     [Authorize(Roles = "Customer")]
     public async Task<IActionResult> UpdateReview(int id, ReviewDto reviewDto)
     {
-        var review = await _context.Reviews.FindAsync(id);
-        if (review == null)
+        if (id != reviewDto.Id)
         {
-            return NotFound();
+            return BadRequest();
         }
 
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (review.UserId != userId)
-        {
-            return Forbid();
-        }
-
-        review.Rating = reviewDto.Rating;
-        review.Comment = reviewDto.Comment;
+        reviewDto.UserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
         try
         {
-            await _context.SaveChangesAsync();
+            await _reviewService.UpdateReviewAsync(id, reviewDto);
+            return NoContent();
         }
-        catch (DbUpdateConcurrencyException)
+        catch (InvalidOperationException ex) when (ex.Message == "Review not found")
         {
-            if (!ReviewExists(id))
-            {
-                return NotFound();
-            }
-            else
-            {
-                throw;
-            }
+            return NotFound(ex.Message);
         }
-
-        return NoContent();
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
     }
 
     // DELETE: api/Reviews/5
@@ -123,39 +83,24 @@ public class ReviewsController : ControllerBase
     [Authorize]
     public async Task<IActionResult> DeleteReview(int id)
     {
-        var review = await _context.Reviews.FindAsync(id);
-        if (review == null)
-        {
-            return NotFound();
-        }
-
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        var isAdmin = User.IsInRole("Librarian");
+        var isLibrarian = User.IsInRole("Librarian");
 
-        // Only allow the review author or librarians to delete a review
-        if (review.UserId != userId && !isAdmin)
+        try
         {
-            return Forbid();
+            var review = await _reviewService.GetReviewByIdAsync(id);
+            
+            if (review.UserId != userId && !isLibrarian)
+            {
+                return Forbid();
+            }
+
+            await _reviewService.DeleteReviewAsync(id);
+            return NoContent();
         }
-
-        _context.Reviews.Remove(review);
-        await _context.SaveChangesAsync();
-
-        return NoContent();
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(ex.Message);
+        }
     }
-
-    private bool ReviewExists(int id)
-    {
-        return _context.Reviews.Any(e => e.Id == id);
-    }
-}
-
-public class ReviewDto
-{
-    public int BookId { get; set; }
-    public int Rating { get; set; }
-    public string Comment { get; set; } = string.Empty;
-    public int Id { get; internal set; }
-    public string? UserName { get; internal set; }
-    public DateTime CreatedAt { get; internal set; }
 }

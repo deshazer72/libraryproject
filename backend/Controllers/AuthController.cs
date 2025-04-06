@@ -12,99 +12,37 @@ namespace LibraryAPI.Controllers;
 [Route("api/[controller]")]
 public class AuthController : ControllerBase
 {
-    private readonly UserManager<ApplicationUser> _userManager;
-    private readonly RoleManager<IdentityRole> _roleManager;
-    private readonly IConfiguration _configuration;
+    private readonly IAuth _authServices;
 
-    public AuthController(
-        UserManager<ApplicationUser> userManager,
-        RoleManager<IdentityRole> roleManager,
-        IConfiguration configuration)
+    public AuthController(IAuth authServices)
     {
-        _userManager = userManager;
-        _roleManager = roleManager;
-        _configuration = configuration;
+        _authServices = authServices;
     }
 
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterModel model)
     {
-        // Check if user exists
-        var userExists = await _userManager.FindByEmailAsync(model.Email);
-        if (userExists != null)
-            return BadRequest(new { Status = "Error", Message = "User already exists!" });
-
-        ApplicationUser user = new()
-        {
-            Email = model.Email,
-            SecurityStamp = Guid.NewGuid().ToString(),
-            UserName = model.Email
-        };
-
-        var result = await _userManager.CreateAsync(user, model.Password);
-        if (!result.Succeeded)
-            return StatusCode(StatusCodes.Status500InternalServerError, 
-                new { Status = "Error", Message = "User creation failed! Please check user details and try again." });
-
-        // Validate role name
-        if (model.Role != "Librarian" && model.Role != "Customer")
-            return BadRequest(new { Status = "Error", Message = "Invalid role specified." });
-
-        await _userManager.AddToRoleAsync(user, model.Role);
-
-        return Ok(new { Status = "Success", Message = "User created successfully!" });
+        var registerUser = await _authServices.RegisterAsync(model);
+        return Ok(registerUser);
     }
 
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginModel model)
     {
-        var user = await _userManager.FindByEmailAsync(model.Email);
-        if (user == null || !await _userManager.CheckPasswordAsync(user, model.Password))
+       var token = await _authServices.LoginAsync(model.Email, model.Password);
+
+       if (token == null)
             return Unauthorized(new { Status = "Error", Message = "Invalid username or password!" });
 
-        var userRoles = await _userManager.GetRolesAsync(user);
+        // Return the token and user details
+        var jwtToken = token.GetType().GetProperty("token")?.GetValue(token, null);
+        var expiration = token.GetType().GetProperty("expiration")?.GetValue(token, null);
+        var user = token.GetType().GetProperty("user")?.GetValue(token, null);
 
-        var authClaims = new List<Claim>
-        {
-            new(ClaimTypes.Name, user.UserName),
-            new(ClaimTypes.NameIdentifier, user.Id),
-            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-        };
+        if (jwtToken == null || expiration == null || user == null)
+            return BadRequest(new { Status = "Error", Message = "Failed to retrieve token or user details." });
 
-        foreach (var userRole in userRoles)
-        {
-            authClaims.Add(new Claim(ClaimTypes.Role, userRole));
-        }
-
-        var token = GetToken(authClaims);
-
-        return Ok(new
-        {
-            token = new JwtSecurityTokenHandler().WriteToken(token),
-            expiration = token.ValidTo,
-            user = new
-            {
-                id = user.Id,
-                userName = user.UserName,
-                email = user.Email,
-                roles = userRoles
-            }
-        });
-    }
-
-    private JwtSecurityToken GetToken(List<Claim> authClaims)
-    {
-        var authSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JwtSettings:Key"]));
-
-        var token = new JwtSecurityToken(
-            issuer: _configuration["JwtSettings:Issuer"],
-            audience: _configuration["JwtSettings:Audience"],
-            expires: DateTime.Now.AddHours(3),
-            claims: authClaims,
-            signingCredentials: new SigningCredentials(authSigningKey, SecurityAlgorithms.HmacSha256)
-        );
-
-        return token;
+       return Ok(token);
     }
 }
 

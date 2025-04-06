@@ -1,9 +1,7 @@
-using LibraryAPI.Data;
 using LibraryAPI.Models;
+using LibraryAPI.DTO;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
 namespace LibraryAPI.Controllers;
@@ -13,48 +11,48 @@ namespace LibraryAPI.Controllers;
 [Authorize]
 public class BookLoansController : ControllerBase
 {
-    private readonly ApplicationDbContext _context;
-    private readonly UserManager<ApplicationUser> _userManager;
+    private readonly IBookLoans _bookLoansService;
 
-    public BookLoansController(ApplicationDbContext context, UserManager<ApplicationUser> userManager)
+    public BookLoansController(IBookLoans bookLoansService)
     {
-        _context = context;
-        _userManager = userManager;
+        _bookLoansService = bookLoansService;
     }
 
     // GET: api/BookLoans
     [HttpGet]
-   public async Task<ActionResult<IEnumerable<BookLoanDto>>> GetMyBookLoans()
-{
-    var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-
-    var bookLoans = await _context.BookLoans
-        .Include(l => l.Book)
-        .Where(l => l.UserId == userId)
-        .OrderByDescending(l => l.CheckoutDate)
-        .Select(l => new BookLoanDto
+    public async Task<ActionResult<IEnumerable<BookLoanDto>>> GetMyBookLoans()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null)
         {
-            Id = l.Id,
-            BookTitle = l.Book.Title,
-            CheckoutDate = l.CheckoutDate,
-            DueDate = l.DueDate,
-            IsReturned = l.ReturnDate.HasValue
-        })
-        .ToListAsync();
-
-    return Ok(bookLoans);
-}
+            return BadRequest("User ID not found");
+        }
+        
+        try 
+        {
+            var bookLoans = await _bookLoansService.GetMyBookLoansAsync(userId);
+            return Ok(bookLoans);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(ex.Message);
+        }
+    }
 
     // GET: api/BookLoans/All
     [HttpGet("All")]
     [Authorize(Roles = "Librarian")]
-    public async Task<ActionResult<IEnumerable<BookLoan>>> GetAllBookLoans()
+    public async Task<ActionResult<IEnumerable<BookLoanDto>>> GetAllBookLoans()
     {
-        return await _context.BookLoans
-            .Include(l => l.Book)
-            .Include(l => l.User)
-            .OrderByDescending(l => l.CheckoutDate)
-            .ToListAsync();
+        try
+        {
+            var bookLoans = await _bookLoansService.GetAllBookLoansAsync();
+            return Ok(bookLoans);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(ex.Message);
+        }
     }
 
     // POST: api/BookLoans/checkout/5
@@ -62,35 +60,15 @@ public class BookLoansController : ControllerBase
     [Authorize(Roles = "Customer")]
     public async Task<ActionResult<BookLoan>> CheckoutBook(int bookId)
     {
-        var book = await _context.Books.FindAsync(bookId);
-        if (book == null)
+        try
         {
-            return NotFound("Book not found");
+            var bookLoan = await _bookLoansService.AddBookLoanAsync(bookId);
+            return CreatedAtAction(nameof(GetMyBookLoans), null, bookLoan);
         }
-
-        if (!book.IsAvailable)
+        catch (InvalidOperationException ex)
         {
-            return BadRequest("Book is not available for checkout");
+            return BadRequest(ex.Message);
         }
-
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-
-        // Create new book loan
-        var bookLoan = new BookLoan
-        {
-            BookId = bookId,
-            UserId = userId,
-            CheckoutDate = DateTime.UtcNow,
-            DueDate = DateTime.UtcNow.AddDays(5)
-        };
-
-        // Update book availability
-        book.IsAvailable = false;
-
-        _context.BookLoans.Add(bookLoan);
-        await _context.SaveChangesAsync();
-
-        return CreatedAtAction(nameof(GetMyBookLoans), bookLoan);
     }
 
     // PUT: api/BookLoans/return/5
@@ -98,28 +76,15 @@ public class BookLoansController : ControllerBase
     [Authorize(Roles = "Librarian")]
     public async Task<IActionResult> ReturnBook(int loanId)
     {
-        var bookLoan = await _context.BookLoans
-            .Include(l => l.Book)
-            .FirstOrDefaultAsync(l => l.Id == loanId);
-
-        if (bookLoan == null)
+        try
         {
-            return NotFound("Book loan not found");
+            var bookLoanDto = new BookLoanDto { Id = loanId, IsReturned = true };
+            await _bookLoansService.UpdateBookLoanAsync(loanId, bookLoanDto);
+            return NoContent();
         }
-
-        if (bookLoan.ReturnDate.HasValue)
+        catch (InvalidOperationException ex)
         {
-            return BadRequest("Book has already been returned");
+            return NotFound(ex.Message);
         }
-
-        // Update loan with return date
-        bookLoan.ReturnDate = DateTime.UtcNow;
-        
-        // Update book availability
-        bookLoan.Book.IsAvailable = true;
-
-        await _context.SaveChangesAsync();
-
-        return NoContent();
     }
 }
