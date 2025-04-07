@@ -30,6 +30,32 @@
 ### API Documentation
 - Open your browser and navigate to `https://localhost:7170/swagger` or `http://localhost:5162/swagger` to access the API documentation.
 
+### Running Tests
+1. Navigate to the test project directory:
+   ```bash
+   cd LibraryAPI.Tests
+   ```
+
+2. Restore the test project dependencies:
+   ```bash
+   dotnet restore
+   ```
+
+3. Build the test project:
+   ```bash
+   dotnet build
+   ```
+
+4. Run the tests:
+   ```bash
+   dotnet test
+   ```
+
+You can also run the tests with detailed output using:
+```bash
+dotnet test --logger "console;verbosity=detailed"
+```
+
 ### Frontend Setup and Running Instructions
 
 ### Prerequisites
