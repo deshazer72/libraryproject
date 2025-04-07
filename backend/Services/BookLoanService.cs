@@ -20,7 +20,7 @@ public class BookLoanService : IBookLoans
         _httpContextAccessor = httpContextAccessor;
     }
  
-    public async Task<BookLoan> AddBookLoanAsync(int bookId)
+    public async Task<BookLoanDto> AddBookLoanAsync(int bookId)
     {
         var book = await _context.Books.FindAsync(bookId);
         if (book == null || !book.IsAvailable)
@@ -44,7 +44,20 @@ public class BookLoanService : IBookLoans
 
         _context.BookLoans.Add(bookLoan);
         await _context.SaveChangesAsync();
-        return bookLoan;
+
+        var bookLoanDto = new BookLoanDto
+        {
+            Id = bookLoan.Id,
+            BookId = bookLoan.BookId,
+            UserId = bookLoan.UserId,
+            BookTitle = book.Title,
+            CheckoutDate = bookLoan.CheckoutDate,
+            DueDate = bookLoan.DueDate,
+            IsReturned = bookLoan.ReturnDate.HasValue,
+            UserName = _httpContextAccessor.HttpContext?.User?.Identity?.Name ?? "Unknown",
+            UserEmail = _httpContextAccessor.HttpContext?.User?.FindFirst(ClaimTypes.Email)?.Value ?? "Unknown"
+        };
+        return bookLoanDto;
     }
 
     public async Task<IEnumerable<BookLoanDto>> GetAllBookLoansAsync()
@@ -61,7 +74,8 @@ public class BookLoanService : IBookLoans
               DueDate = l.DueDate,
               IsReturned = l.ReturnDate.HasValue,
               UserName = l.User.UserName,
-              UserEmail = l.User.Email
+              UserEmail = l.User.Email,
+              book = l.Book
           })
           .ToListAsync();
 

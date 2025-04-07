@@ -65,6 +65,15 @@ public class BookService : IBooks
             ISBN = book.ISBN,
             PageCount = book.PageCount,
             IsAvailable = book.IsAvailable,
+            Reviews = book.Reviews.Select(r => new ReviewDto
+            {
+                Id = r.Id,
+                BookId = r.BookId,
+                UserId = r.UserId,
+                Rating = r.Rating,
+                Comment = r.Comment,
+                CreatedAt = r.CreatedAt
+            }).ToList(),
             AverageRating = book.Reviews.Any() ? book.Reviews.Average(r => r.Rating) : 0.0
         };
     }

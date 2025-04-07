@@ -56,3 +56,14 @@
    ```
 
 4. Open your browser and navigate to `http://localhost:4200` to view the application.
+
+### Database Diagram
+The database diagram for this project can be found in:
+- Location: `CodeTemplates/DbContext.mermaid.t4`
+- Format: Mermaid diagram
+- This diagram provides a visual representation of the database schema including tables, relationships, and fields.
+
+To view the diagram:
+1. Install a Mermaid viewer extension in VS Code
+2. Open the `DbContext.mermaid.t4` file
+3. Use the preview feature to visualize the database structure

@@ -47,9 +47,47 @@ namespace LibraryAPI.Extensions
                     IssuerSigningKey = new SymmetricSecurityKey(
                         Encoding.UTF8.GetBytes(configuration["JwtSettings:Key"] ?? throw new InvalidOperationException("JWT Key is not configured")))
                 };
+
+                // Configure for SignalR
+                options.Events = new JwtBearerEvents
+                {
+                    OnMessageReceived = context =>
+                    {
+                        var accessToken = context.Request.Query["access_token"];
+                        var path = context.HttpContext.Request.Path;
+
+                        // If token is not in query string, check Authorization header
+                        if (string.IsNullOrEmpty(accessToken))
+                        {
+                            var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
+                            if (!string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer "))
+                            {
+                                accessToken = authHeader.Substring("Bearer ".Length);
+                            }
+                        }
+
+                        // Set token for both SignalR and regular HTTP requests
+                        if (!string.IsNullOrEmpty(accessToken))
+                        {
+                            // Set token for SignalR requests
+                            if (path.StartsWithSegments("/hubs/library") ||
+                                path.StartsWithSegments("/hubs/library/negotiate"))
+                            {
+                                context.Token = accessToken;
+                            }
+                            // Set token for regular HTTP requests
+                            else
+                            {
+                                context.Token = accessToken;
+                            }
+                        }
+
+                        return Task.CompletedTask;
+                    }
+                };
             });
 
-            // Add CORS
+            // Add CORS with specific allowed origins
             services.AddCors(options =>
             {
                 options.AddPolicy("AllowAngularApp",

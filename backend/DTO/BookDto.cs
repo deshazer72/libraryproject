@@ -1,3 +1,5 @@
+using LibraryAPI.Models;
+
 namespace LibraryAPI.DTO;
 
 public class BookDto
@@ -16,4 +18,5 @@ public class BookDto
     public double AverageRating { get; set; }
     public int Rating { get; set; }
     public string Comment { get; set; } = string.Empty;
+    public List<ReviewDto> Reviews { get; set; } = new List<ReviewDto>();
 }

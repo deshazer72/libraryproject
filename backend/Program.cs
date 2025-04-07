@@ -2,6 +2,7 @@ using LibraryAPI.Data;
 using LibraryAPI.Data.Seed;
 using LibraryAPI.Extensions;
 using LibraryAPI.Models;
+using LibraryAPI.Hubs;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,6 +12,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddApplicationServices(builder.Configuration);
+builder.Services.AddSignalR(); // Add SignalR
 
 var app = builder.Build();
 
@@ -41,9 +43,15 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-app.UseCors("AllowAngularApp");
+app.UseCors("AllowAngularApp"); // CORS before auth
+app.UseRouting(); // Add UseRouting before authentication
 app.UseAuthentication();
 app.UseAuthorization();
-app.MapControllers();
+
+app.UseEndpoints(endpoints =>
+{
+    endpoints.MapHub<LibraryHub>("/hubs/library");
+    endpoints.MapControllers();
+});
 
 app.Run();

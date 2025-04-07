@@ -1,7 +1,9 @@
 using LibraryAPI.Models;
 using LibraryAPI.DTO;
+using LibraryAPI.Hubs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using System.Security.Claims;
 
 namespace LibraryAPI.Controllers;
@@ -12,10 +14,12 @@ namespace LibraryAPI.Controllers;
 public class BookLoansController : ControllerBase
 {
     private readonly IBookLoans _bookLoansService;
+    private readonly IHubContext<LibraryHub> _hubContext;
 
-    public BookLoansController(IBookLoans bookLoansService)
+    public BookLoansController(IBookLoans bookLoansService, IHubContext<LibraryHub> hubContext)
     {
         _bookLoansService = bookLoansService;
+        _hubContext = hubContext;
     }
 
     // GET: api/BookLoans
@@ -63,6 +67,11 @@ public class BookLoansController : ControllerBase
         try
         {
             var bookLoan = await _bookLoansService.AddBookLoanAsync(bookId);
+            
+            // Send notification to librarians
+            await _hubContext.Clients.Group("Librarians")
+                .SendAsync("ReceiveNotification", $"New book loan: Book ID {bookId} has been checked out");
+
             return CreatedAtAction(nameof(GetMyBookLoans), null, bookLoan);
         }
         catch (InvalidOperationException ex)
@@ -79,7 +88,15 @@ public class BookLoansController : ControllerBase
         try
         {
             var bookLoanDto = new BookLoanDto { Id = loanId, IsReturned = true };
-            await _bookLoansService.UpdateBookLoanAsync(loanId, bookLoanDto);
+            var updatedLoan = await _bookLoansService.UpdateBookLoanAsync(loanId, bookLoanDto);
+
+            // Get the loan details and notify the user using their email
+            if (updatedLoan != null && !string.IsNullOrEmpty(updatedLoan.UserEmail))
+            {
+                await _hubContext.Clients.User(updatedLoan.UserEmail)
+                    .SendAsync("ReceiveNotification", $"Your book '{updatedLoan.BookTitle}' has been marked as returned. Thank you!");
+            }
+
             return NoContent();
         }
         catch (InvalidOperationException ex)

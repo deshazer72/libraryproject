@@ -57,8 +57,8 @@ namespace LibraryAPI.Tests
                 var book = new Book { Id = 1, Title = "Test Book" };
                 context.Users.Add(user);
                 context.Books.Add(book);
-                context.BookLoans.Add(new BookLoan 
-                { 
+                context.BookLoans.Add(new BookLoan
+                {
                     Id = 1,
                     BookId = 1,
                     UserId = "user1",
@@ -87,7 +87,8 @@ namespace LibraryAPI.Tests
 
             using (var context = new ApplicationDbContext(options))
             {
-                var user = new ApplicationUser { Id = "user1", UserName = "testuser" };
+                // Setup test data
+                var user = new ApplicationUser { Id = "user1", UserName = "testuser@gmail.com" };
                 var book = new Book { Id = 1, Title = "Test Book", IsAvailable = true };
                 context.Users.Add(user);
                 context.Books.Add(book);
@@ -95,13 +96,17 @@ namespace LibraryAPI.Tests
 
                 // Setup HttpContext with user claims
                 var httpContext = new DefaultHttpContext();
-                var claims = new System.Security.Claims.ClaimsPrincipal(
-                    new System.Security.Claims.ClaimsIdentity(
-                        new System.Security.Claims.Claim[] {
-                            new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, "user1")
-                        }));
+                var claims = new ClaimsPrincipal(
+                    new ClaimsIdentity(
+                        new Claim[] {
+                    new Claim(ClaimTypes.NameIdentifier, "user1")
+                        }, "TestAuthentication"));
                 httpContext.User = claims;
                 _mockHttpContextAccessor.Setup(x => x.HttpContext).Returns(httpContext);
+
+                // Setup UserManager mock
+                _mockUserManager.Setup(x => x.FindByIdAsync("user1"))
+                    .ReturnsAsync(user);
 
                 var service = new BookLoanService(context, _mockUserManager.Object, _mockHttpContextAccessor.Object);
 
@@ -112,6 +117,11 @@ namespace LibraryAPI.Tests
                 Assert.NotNull(result);
                 Assert.Equal("user1", result.UserId);
                 Assert.Equal(1, result.BookId);
+
+                // Verify the loan was actually created in the database
+                var savedLoan = await context.BookLoans.FirstOrDefaultAsync(l => l.BookId == 1);
+                Assert.NotNull(savedLoan);
+                Assert.Equal("user1", savedLoan.UserId);
             }
         }
 
