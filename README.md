@@ -83,6 +83,23 @@ dotnet test --logger "console;verbosity=detailed"
 
 4. Open your browser and navigate to `http://localhost:4200` to view the application.
 
+### Testing Real-time Features (SignalR)
+To test the real-time notification features:
+
+1. Open two different browsers (e.g., Chrome and Edge)
+2. In the first browser (e.g., Chrome):
+   - Create a new customer account
+   - Log in with the customer account
+3. In the second browser (e.g., Edge):
+   - Create a new librarian account
+   - Log in with the librarian account
+4. In the customer browser:
+   - Browse and checkout a book
+5. In the librarian browser:
+   - You should see a real-time notification about the book checkout
+
+This demonstrates the real-time SignalR communication between customers and librarians.
+
 ### Database Diagram
 The database diagram for this project can be found in:
 - Location: `CodeTemplates/DbContext.mermaid.t4`
