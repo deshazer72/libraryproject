@@ -2,7 +2,7 @@
 
 ### Prerequisites
 1. Install [.NET SDK 9.0](https://dotnet.microsoft.com/download/dotnet/9.0).
-2. Install a SQL Server instance (e.g., [SQL Server Express](https://www.microsoft.com/en-us/sql-server/sql-server-downloads)).
+2. Install a SQL Server instance or sql server developer edition. If you use sql server express you will have to change connectionstrings in appsettings.json (e.g., [SQL Server Express](https://www.microsoft.com/en-us/sql-server/sql-server-downloads) or [SQL-Server-developer](https://www.microsoft.com/en-us/sql-server/sql-server-downloads).
 
 ### Steps to Start the Backend
 1. Navigate to the `backend` directory:
